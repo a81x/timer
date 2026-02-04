@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Таймер для митингов</title>
+    <style>
+        :root {
+            --btn-size: clamp(45px, 12vw, 60px);
+            --btn-gap: clamp(5px, 2vw, 10px);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #222830;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 5px;
+            margin: 0;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: clamp(15px, 3vw, 25px);
+            width: 100%;
+            padding: 0;
+            margin: 0;
+        }
+
+        .timer-wrapper {
+            position: relative;
+            width: min(100%, calc(60px * 4 + var(--btn-gap) * 3));
+            aspect-ratio: 1 / 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .circle-container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+        
+        .circle-container svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .circle-bg {
+            fill: none;
+            stroke: #3D444D;
+            stroke-width: 27;
+            transition: fill 0.3s ease;
+        }
+
+        .circle-container.overtime-bg .circle-bg {
+            fill: #2B2027;
+        }
+
+        .circle-progress {
+            fill: none;
+            stroke: #347D39;
+            stroke-width: 27;
+            stroke-linecap: round;
+            transition: stroke 0.3s ease, stroke-dashoffset 0.1s linear;
+            stroke-dasharray: 848;
+            stroke-dashoffset: 848;
+        }
+
+        .circle-progress.warning {
+            stroke: #ff8c42;
+        }
+
+        .circle-progress.overtime {
+            stroke: #C93B37;
+        }
+
+        .timer-display {
+            position: relative;
+            font-size: clamp(28px, 10vw, 60px);
+            font-weight: 300;
+            color: #ffffff;
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+            z-index: 10;
+            opacity: 1;
+        }
+
+        button {
+            background: transparent;
+            border: 2px solid #3D444D;
+            border-radius: 50px;
+            padding: clamp(12px, 2vw, 15px) clamp(30px, 5vw, 40px);
+            font-size: clamp(14px, 2vw, 18px);
+            font-weight: 500;
+            color: #3D444D;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            min-width: clamp(96px, 16vw, 120px);
+        }
+
+        button:hover {
+            background: #3D444D;
+            color: #ffffff;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        button.active {
+            background: transparent;
+            color: #ffffff;
+        }
+
+        .icon-btn {
+            min-width: auto;
+            width: 60px;
+            height: 60px;
+            padding: 0;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .icon-btn svg {
+            width: 28px;
+            height: 28px;
+        }
+
+        .time-btn {
+            min-width: auto;
+            width: 60px;
+            height: 60px;
+            padding: 0;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(16px, 3vw, 22px);
+            flex-shrink: 0;
+        }
+
+        .time-buttons {
+            display: flex;
+            flex-direction: row;
+            gap: var(--btn-gap);
+            flex-wrap: nowrap;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            max-width: calc(60px * 5 + var(--btn-gap) * 4);
+        }
+
+        @media (max-width: 500px) {
+            .time-buttons {
+                flex-direction: column;
+                align-items: center;
+                max-width: 60px;
+            }
+        }
+
+        @media (min-width: 501px) {
+            .time-buttons {
+                flex-wrap: wrap;
+            }
+        }
+
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="timer-wrapper">
+            <svg class="circle-container" id="circleContainer" viewBox="0 0 300 300" preserveAspectRatio="xMidYMid meet">
+                <circle class="circle-bg" cx="150" cy="150" r="135"></circle>
+                <circle class="circle-progress" id="circleProgress" cx="150" cy="150" r="135"></circle>
+            </svg>
+            <div class="timer-display" id="timerDisplay">02:00</div>
+        </div>
+
+        <div class="time-buttons">
+            <button class="time-btn" data-minutes="2">2</button>
+            <button class="time-btn" data-minutes="3">3</button>
+            <button class="time-btn" data-minutes="5">5</button>
+            <button class="time-btn" data-minutes="10">10</button>
+            <button id="stopBtn" class="icon-btn" aria-label="Stop">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="6" y="6" width="12" height="12"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let targetTime = null;
+        let timerInterval = null;
+        let isRunning = false;
+        let isPaused = false;
+        let pausedTimeRemaining = 0;
+        let currentDuration = 120; // По умолчанию 2 минуты
+        let lastSetDuration = 120; // Последний установленный интервал
+        let isOvertime = false;
+
+        const timerDisplay = document.getElementById('timerDisplay');
+        const circleProgress = document.getElementById('circleProgress');
+        const circleContainer = document.getElementById('circleContainer');
+        const stopBtn = document.getElementById('stopBtn');
+        const timeButtons = document.querySelectorAll('.time-btn');
+        
+        const CIRCLE_CIRCUMFERENCE = 848; // 2 * PI * radius (135)
+
+        function formatTime(seconds) {
+            const absSeconds = Math.abs(seconds);
+            const mins = Math.floor(absSeconds / 60);
+            const secs = Math.floor(absSeconds % 60);
+            return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+
+        function updateTimer() {
+            if (!targetTime) return;
+
+            const now = Date.now();
+            const elapsed = (now - (targetTime - currentDuration * 1000)) / 1000;
+            const totalSeconds = currentDuration;
+            
+            let displaySeconds, progress;
+
+            if (elapsed <= totalSeconds) {
+                // Основное время - зеленый/оранжевый
+                displaySeconds = totalSeconds - elapsed;
+                progress = elapsed / totalSeconds;
+                const offset = CIRCLE_CIRCUMFERENCE * (1 - progress);
+                circleProgress.style.strokeDashoffset = offset;
+                circleProgress.classList.remove('overtime');
+                
+                // Проверяем, осталось ли меньше 25% времени
+                if (progress >= 0.75) {
+                    // Меньше 25% времени - оранжевый
+                    circleProgress.classList.add('warning');
+                } else {
+                    // Больше 25% времени - зеленый
+                    circleProgress.classList.remove('warning');
+                }
+                
+                circleContainer.classList.remove('overtime-bg');
+                isOvertime = false;
+            } else {
+                // Овертайм - красный
+                const overtimeElapsed = elapsed - totalSeconds;
+                const cyclePosition = overtimeElapsed % totalSeconds;
+                displaySeconds = totalSeconds - cyclePosition;
+                progress = cyclePosition / totalSeconds;
+                const offset = CIRCLE_CIRCUMFERENCE * (1 - progress);
+                circleProgress.style.strokeDashoffset = offset;
+                circleProgress.classList.remove('warning');
+                circleProgress.classList.add('overtime');
+                circleContainer.classList.add('overtime-bg');
+                isOvertime = true;
+            }
+
+            timerDisplay.textContent = formatTime(displaySeconds);
+        }
+
+        function startTimer(seconds = currentDuration) {
+            stopTimer();
+            currentDuration = seconds;
+            lastSetDuration = seconds; // Сохраняем последний установленный интервал
+            targetTime = Date.now() + (seconds * 1000);
+            isRunning = true;
+            isPaused = false;
+            isOvertime = false;
+            circleProgress.classList.remove('overtime', 'warning');
+            circleContainer.classList.remove('overtime-bg');
+            circleProgress.style.strokeDashoffset = CIRCLE_CIRCUMFERENCE;
+            updateStopButton();
+            updateTimer();
+            timerInterval = setInterval(updateTimer, 50);
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            isRunning = false;
+            isPaused = false;
+            isOvertime = false;
+            circleProgress.classList.remove('overtime', 'warning');
+            circleContainer.classList.remove('overtime-bg');
+            updateStopButton();
+        }
+
+        function pauseTimer() {
+            if (!isRunning || isPaused) return;
+            
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            
+            // Сохраняем оставшееся время
+            const now = Date.now();
+            const elapsed = (now - (targetTime - currentDuration * 1000)) / 1000;
+            pausedTimeRemaining = elapsed;
+            
+            isPaused = true;
+            isRunning = false;
+            updateStopButton();
+        }
+
+        function resumeTimer() {
+            if (!isPaused) return;
+            
+            // Продолжаем с сохраненного времени
+            targetTime = Date.now() + (currentDuration * 1000 - pausedTimeRemaining * 1000);
+            isPaused = false;
+            isRunning = true;
+            updateStopButton();
+            updateTimer();
+            timerInterval = setInterval(updateTimer, 50);
+        }
+
+        function togglePause() {
+            if (isPaused) {
+                resumeTimer();
+            } else if (isRunning) {
+                pauseTimer();
+            }
+        }
+
+        function updateStopButton() {
+            if (isPaused) {
+                // Показываем иконку Play
+                stopBtn.innerHTML = `
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">
+                        <polygon points="6,4 18,12 6,20"/>
+                    </svg>
+                `;
+            } else {
+                // Показываем иконку Stop
+                stopBtn.innerHTML = `
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="6" y="6" width="12" height="12"/>
+                    </svg>
+                `;
+            }
+        }
+
+        // Обработчики событий
+        stopBtn.addEventListener('click', togglePause);
+
+        timeButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Убираем active у всех кнопок времени
+                timeButtons.forEach(b => b.classList.remove('active'));
+                // Добавляем active к текущей кнопке
+                btn.classList.add('active');
+                
+                const minutes = parseInt(btn.dataset.minutes);
+                const seconds = minutes * 60; // Переводим минуты в секунды
+                startTimer(seconds);
+            });
+        });
+
+        // Клавиатурные shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === '2') {
+                startTimer(120); // 2 минуты
+            } else if (e.key === '3') {
+                startTimer(180); // 3 минуты
+            } else if (e.key === '5') {
+                startTimer(300); // 5 минут
+            } else if (e.key === ' ' || e.key === 'Escape') {
+                e.preventDefault();
+                startTimer(lastSetDuration);
+            }
+        });
+
+        // Инициализация при загрузке
+        window.addEventListener('DOMContentLoaded', () => {
+            currentDuration = 120;
+            timerDisplay.textContent = '02:00';
+            circleProgress.style.strokeDashoffset = CIRCLE_CIRCUMFERENCE;
+        });
+    </script>
+</body>
+</html>
+
