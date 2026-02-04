@@ -31,6 +31,11 @@
             min-height: 100vh;
             padding: 5px;
             margin: 0;
+            transition: background 0.3s ease;
+        }
+
+        body.overtime-critical {
+            background: #3D2020;
         }
 
         .container {
@@ -67,7 +72,7 @@
         .circle-bg {
             fill: none;
             stroke: #3D444D;
-            stroke-width: 27;
+            stroke-width: 32;
             transition: fill 0.3s ease;
         }
 
@@ -78,7 +83,7 @@
         .circle-progress {
             fill: none;
             stroke: #347D39;
-            stroke-width: 27;
+            stroke-width: 32;
             stroke-linecap: round;
             transition: stroke 0.3s ease, stroke-dashoffset 0.1s linear;
             stroke-dasharray: 848;
@@ -95,7 +100,7 @@
 
         .timer-display {
             position: relative;
-            font-size: clamp(28px, 10vw, 60px);
+            font-size: clamp(40px, 14vw, 86px);
             font-weight: 300;
             color: #ffffff;
             text-align: center;
@@ -201,6 +206,7 @@
         </div>
 
         <div class="time-buttons">
+            <button class="time-btn" data-seconds="2">2s</button>
             <button class="time-btn" data-minutes="2">2</button>
             <button class="time-btn" data-minutes="3">3</button>
             <button class="time-btn" data-minutes="5">5</button>
@@ -264,20 +270,39 @@
                     circleProgress.classList.remove('warning');
                 }
                 
+                // Убираем эффекты овертайма
                 circleContainer.classList.remove('overtime-bg');
+                document.body.classList.remove('overtime-critical');
                 isOvertime = false;
             } else {
-                // Овертайм - красный
+                // Овертайм - красный, время суммируется с каждым кругом
                 const overtimeElapsed = elapsed - totalSeconds;
+                const cycleNumber = Math.floor(overtimeElapsed / totalSeconds);
                 const cyclePosition = overtimeElapsed % totalSeconds;
-                displaySeconds = totalSeconds - cyclePosition;
+                // Суммируем время: каждый круг добавляет totalSeconds
+                // 1-й круг: от 2:00 до 0:00, 2-й круг: от 4:00 до 2:00, и т.д.
+                displaySeconds = (cycleNumber + 1) * totalSeconds - cyclePosition;
                 progress = cyclePosition / totalSeconds;
                 const offset = CIRCLE_CIRCUMFERENCE * (1 - progress);
                 circleProgress.style.strokeDashoffset = offset;
                 circleProgress.classList.remove('warning');
                 circleProgress.classList.add('overtime');
-                circleContainer.classList.add('overtime-bg');
                 isOvertime = true;
+                
+                // Эскалация визуального предупреждения
+                // 50% овертайма - закрашиваем внутреннюю часть круга
+                if (overtimeElapsed >= totalSeconds * 0.5) {
+                    circleContainer.classList.add('overtime-bg');
+                } else {
+                    circleContainer.classList.remove('overtime-bg');
+                }
+                
+                // 60% овертайма - закрашиваем весь фон страницы
+                if (overtimeElapsed >= totalSeconds * 0.6) {
+                    document.body.classList.add('overtime-critical');
+                } else {
+                    document.body.classList.remove('overtime-critical');
+                }
             }
 
             timerDisplay.textContent = formatTime(displaySeconds);
@@ -293,6 +318,7 @@
             isOvertime = false;
             circleProgress.classList.remove('overtime', 'warning');
             circleContainer.classList.remove('overtime-bg');
+            document.body.classList.remove('overtime-critical');
             circleProgress.style.strokeDashoffset = CIRCLE_CIRCUMFERENCE;
             updateStopButton();
             updateTimer();
@@ -309,6 +335,7 @@
             isOvertime = false;
             circleProgress.classList.remove('overtime', 'warning');
             circleContainer.classList.remove('overtime-bg');
+            document.body.classList.remove('overtime-critical');
             updateStopButton();
         }
 
@@ -378,8 +405,12 @@
                 // Добавляем active к текущей кнопке
                 btn.classList.add('active');
                 
-                const minutes = parseInt(btn.dataset.minutes);
-                const seconds = minutes * 60; // Переводим минуты в секунды
+                let seconds;
+                if (btn.dataset.seconds) {
+                    seconds = parseInt(btn.dataset.seconds);
+                } else {
+                    seconds = parseInt(btn.dataset.minutes) * 60;
+                }
                 startTimer(seconds);
             });
         });
