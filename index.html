@@ -100,7 +100,7 @@
 
         .timer-display {
             position: relative;
-            font-size: clamp(40px, 14vw, 86px);
+            font-size: clamp(23.4px, 8.1vw, 49.5px);
             font-weight: 300;
             color: #ffffff;
             text-align: center;
@@ -114,7 +114,7 @@
             border: 2px solid #3D444D;
             border-radius: 50px;
             padding: clamp(12px, 2vw, 15px) clamp(30px, 5vw, 40px);
-            font-size: clamp(14px, 2vw, 18px);
+            font-size: clamp(12.6px, 1.8vw, 16.2px);
             font-weight: 500;
             color: #3D444D;
             cursor: pointer;
@@ -163,7 +163,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: clamp(16px, 3vw, 22px);
+            font-size: clamp(18px, 3.375vw, 24.75px);
             flex-shrink: 0;
         }
 
@@ -274,29 +274,24 @@
                 document.body.classList.remove('overtime-critical');
                 isOvertime = false;
             } else {
-                // Овертайм - красный, время суммируется с каждым кругом
                 const overtimeElapsed = elapsed - totalSeconds;
-                const cycleNumber = Math.floor(overtimeElapsed / totalSeconds);
-                const cyclePosition = overtimeElapsed % totalSeconds;
-                // Суммируем время: каждый круг добавляет totalSeconds
-                // 1-й круг: от 2:00 до 0:00, 2-й круг: от 4:00 до 2:00, и т.д.
-                displaySeconds = (cycleNumber + 1) * totalSeconds - cyclePosition;
-                progress = cyclePosition / totalSeconds;
-                const offset = CIRCLE_CIRCUMFERENCE * (1 - progress);
-                circleProgress.style.strokeDashoffset = offset;
                 circleProgress.classList.remove('warning');
                 circleProgress.classList.add('overtime');
                 isOvertime = true;
-                
-                // Эскалация визуального предупреждения
-                // 50% овертайма - закрашиваем внутреннюю часть круга
+
+                // Прямой счёт вперёд начиная с основного времени: 2:00, 2:01, 2:02...
+                displaySeconds = totalSeconds + overtimeElapsed;
+
+                // Круг делает один оборот за totalSeconds секунд, потом остаётся полным
+                const overtimeCycleProgress = Math.min(overtimeElapsed / totalSeconds, 1);
+                circleProgress.style.strokeDashoffset = CIRCLE_CIRCUMFERENCE * (1 - overtimeCycleProgress);
+
                 if (overtimeElapsed >= totalSeconds * 0.5) {
                     circleContainer.classList.add('overtime-bg');
                 } else {
                     circleContainer.classList.remove('overtime-bg');
                 }
-                
-                // 60% овертайма - закрашиваем весь фон страницы
+
                 if (overtimeElapsed >= totalSeconds * 0.6) {
                     document.body.classList.add('overtime-critical');
                 } else {
