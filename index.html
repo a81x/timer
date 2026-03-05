@@ -192,11 +192,65 @@
             }
         }
 
+        .session-timer-wrapper {
+            position: relative;
+            width: min(50%, calc((60px * 4 + var(--btn-gap) * 3) * 0.5));
+            aspect-ratio: 1 / 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .session-circle-container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+
+        .session-circle-container svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .session-circle-bg {
+            fill: none;
+            stroke: #3D444D;
+            stroke-width: 32;
+        }
+
+        .session-circle-progress {
+            fill: none;
+            stroke: #ffffff;
+            stroke-width: 32;
+            stroke-linecap: round;
+            stroke-dasharray: 848;
+            stroke-dashoffset: 848;
+            transition: stroke-dashoffset 0.1s linear;
+        }
+
+        .session-timer-display {
+            position: relative;
+            font-size: clamp(11.7px, 4.05vw, 24.75px);
+            font-weight: 300;
+            color: #ffffff;
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+            z-index: 10;
+        }
 
     </style>
 </head>
 <body>
     <div class="container">
+        <div class="session-timer-wrapper">
+            <svg class="session-circle-container" viewBox="0 0 300 300" preserveAspectRatio="xMidYMid meet">
+                <circle class="session-circle-bg" cx="150" cy="150" r="135"></circle>
+                <circle class="session-circle-progress" id="sessionCircleProgress" cx="150" cy="150" r="135"></circle>
+            </svg>
+            <div class="session-timer-display" id="sessionTimerDisplay">00:00</div>
+        </div>
+
         <div class="timer-wrapper">
             <svg class="circle-container" id="circleContainer" viewBox="0 0 300 300" preserveAspectRatio="xMidYMid meet">
                 <circle class="circle-bg" cx="150" cy="150" r="135"></circle>
@@ -219,6 +273,46 @@
     </div>
 
     <script>
+        // Сессионный таймер (запускается при загрузке)
+        const sessionStartTime = Date.now();
+        const sessionCircleProgress = document.getElementById('sessionCircleProgress');
+        const sessionTimerDisplay = document.getElementById('sessionTimerDisplay');
+function updateSessionTimer() {
+            const elapsed = (Date.now() - sessionStartTime) / 1000;
+            const totalMins = Math.floor(elapsed / 60);
+            const secs = Math.floor(elapsed % 60);
+            const hours = Math.floor(totalMins / 60);
+            const mins = totalMins % 60;
+
+            if (hours > 0) {
+                sessionTimerDisplay.textContent = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+            } else {
+                sessionTimerDisplay.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            }
+
+            const GREEN_PHASE  = 45 * 60; // 0–45 мин
+            const ORANGE_PHASE = 15 * 60; // 45–60 мин
+            const RED_CYCLE    = 15 * 60; // 60+ мин, циклы по 15 мин
+
+            let cycleProgress, color;
+
+            if (elapsed < GREEN_PHASE) {
+                cycleProgress = elapsed / GREEN_PHASE;
+                color = '#347D39';
+            } else if (elapsed < GREEN_PHASE + ORANGE_PHASE) {
+                cycleProgress = (elapsed - GREEN_PHASE) / ORANGE_PHASE;
+                color = '#ff8c42';
+            } else {
+                cycleProgress = ((elapsed - GREEN_PHASE - ORANGE_PHASE) % RED_CYCLE) / RED_CYCLE;
+                color = '#C93B37';
+            }
+
+            sessionCircleProgress.style.stroke = color;
+            sessionCircleProgress.style.strokeDashoffset = CIRCLE_CIRCUMFERENCE * (1 - cycleProgress);
+        }
+
+        setInterval(updateSessionTimer, 50);
+
         let targetTime = null;
         let timerInterval = null;
         let isRunning = false;
