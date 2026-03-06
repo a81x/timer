@@ -239,18 +239,22 @@
             z-index: 10;
         }
 
+        .session-buttons {
+            display: flex;
+            gap: var(--btn-gap);
+            justify-content: center;
+        }
+
+        .session-btn {
+            min-width: auto;
+            padding: clamp(8px, 1.5vw, 12px) clamp(16px, 3vw, 24px);
+            font-size: clamp(12px, 1.6vw, 15px);
+        }
+
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="session-timer-wrapper">
-            <svg class="session-circle-container" viewBox="0 0 300 300" preserveAspectRatio="xMidYMid meet">
-                <circle class="session-circle-bg" cx="150" cy="150" r="135"></circle>
-                <circle class="session-circle-progress" id="sessionCircleProgress" cx="150" cy="150" r="135"></circle>
-            </svg>
-            <div class="session-timer-display" id="sessionTimerDisplay">00:00</div>
-        </div>
-
         <div class="timer-wrapper">
             <svg class="circle-container" id="circleContainer" viewBox="0 0 300 300" preserveAspectRatio="xMidYMid meet">
                 <circle class="circle-bg" cx="150" cy="150" r="135"></circle>
@@ -270,48 +274,84 @@
                 </svg>
             </button>
         </div>
+
+        <div class="session-timer-wrapper">
+            <svg class="session-circle-container" viewBox="0 0 300 300" preserveAspectRatio="xMidYMid meet">
+                <circle class="session-circle-bg" cx="150" cy="150" r="135"></circle>
+                <circle class="session-circle-progress" id="sessionCircleProgress" cx="150" cy="150" r="135"></circle>
+            </svg>
+            <div class="session-timer-display" id="sessionTimerDisplay">00:00</div>
+        </div>
+
+        <div class="session-buttons">
+            <button class="session-btn" data-session-minutes="15">15 мин</button>
+            <button class="session-btn" data-session-minutes="30">30 мин</button>
+        </div>
     </div>
 
     <script>
-        // Сессионный таймер (запускается при загрузке)
-        const sessionStartTime = Date.now();
+        // Сессионный таймер (обратный отсчёт, запускается кнопками)
         const sessionCircleProgress = document.getElementById('sessionCircleProgress');
         const sessionTimerDisplay = document.getElementById('sessionTimerDisplay');
-function updateSessionTimer() {
-            const elapsed = (Date.now() - sessionStartTime) / 1000;
-            const totalMins = Math.floor(elapsed / 60);
-            const secs = Math.floor(elapsed % 60);
-            const hours = Math.floor(totalMins / 60);
-            const mins = totalMins % 60;
+        let sessionTargetTime = null;
+        let sessionDuration = 0;
+        let sessionInterval = null;
+        let sessionRunning = false;
 
-            if (hours > 0) {
-                sessionTimerDisplay.textContent = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
-            } else {
-                sessionTimerDisplay.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        function updateSessionTimer() {
+            if (!sessionTargetTime) return;
+
+            const now = Date.now();
+            const remaining = (sessionTargetTime - now) / 1000;
+
+            if (remaining <= 0) {
+                // Время вышло
+                sessionTimerDisplay.textContent = '00:00';
+                sessionCircleProgress.style.strokeDashoffset = 0;
+                sessionCircleProgress.style.stroke = '#C93B37';
+                clearInterval(sessionInterval);
+                sessionInterval = null;
+                sessionRunning = false;
+                return;
             }
 
-            const GREEN_PHASE  = 45 * 60; // 0–45 мин
-            const ORANGE_PHASE = 15 * 60; // 45–60 мин
-            const RED_CYCLE    = 15 * 60; // 60+ мин, циклы по 15 мин
+            const mins = Math.floor(remaining / 60);
+            const secs = Math.floor(remaining % 60);
+            sessionTimerDisplay.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 
-            let cycleProgress, color;
+            const progress = 1 - (remaining / sessionDuration);
+            sessionCircleProgress.style.strokeDashoffset = CIRCLE_CIRCUMFERENCE * (1 - progress);
 
-            if (elapsed < GREEN_PHASE) {
-                cycleProgress = elapsed / GREEN_PHASE;
-                color = '#347D39';
-            } else if (elapsed < GREEN_PHASE + ORANGE_PHASE) {
-                cycleProgress = (elapsed - GREEN_PHASE) / ORANGE_PHASE;
-                color = '#ff8c42';
+            // Цвет: зелёный -> оранжевый (75%) -> красный (90%)
+            if (progress >= 0.9) {
+                sessionCircleProgress.style.stroke = '#C93B37';
+            } else if (progress >= 0.75) {
+                sessionCircleProgress.style.stroke = '#ff8c42';
             } else {
-                cycleProgress = ((elapsed - GREEN_PHASE - ORANGE_PHASE) % RED_CYCLE) / RED_CYCLE;
-                color = '#C93B37';
+                sessionCircleProgress.style.stroke = '#347D39';
             }
-
-            sessionCircleProgress.style.stroke = color;
-            sessionCircleProgress.style.strokeDashoffset = CIRCLE_CIRCUMFERENCE * (1 - cycleProgress);
         }
 
-        setInterval(updateSessionTimer, 50);
+        function startSessionTimer(seconds) {
+            if (sessionInterval) {
+                clearInterval(sessionInterval);
+            }
+            sessionDuration = seconds;
+            sessionTargetTime = Date.now() + seconds * 1000;
+            sessionRunning = true;
+            sessionCircleProgress.style.strokeDashoffset = CIRCLE_CIRCUMFERENCE;
+            sessionCircleProgress.style.stroke = '#347D39';
+            updateSessionTimer();
+            sessionInterval = setInterval(updateSessionTimer, 50);
+        }
+
+        document.querySelectorAll('.session-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.session-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                startSessionTimer(parseInt(btn.dataset.sessionMinutes) * 60);
+            });
+        });
 
         let targetTime = null;
         let timerInterval = null;
