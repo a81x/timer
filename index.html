@@ -50,7 +50,7 @@
 
         .timer-wrapper {
             position: relative;
-            width: min(100%, calc(60px * 4 + var(--btn-gap) * 3));
+            width: min(80%, calc((60px * 4 + var(--btn-gap) * 3) * 0.8));
             aspect-ratio: 1 / 1;
             display: flex;
             justify-content: center;
@@ -100,7 +100,7 @@
 
         .timer-display {
             position: relative;
-            font-size: clamp(23.4px, 8.1vw, 49.5px);
+            font-size: clamp(18.7px, 6.48vw, 39.6px);
             font-weight: 300;
             color: #ffffff;
             text-align: center;
@@ -140,8 +140,8 @@
 
         .icon-btn {
             min-width: auto;
-            width: 60px;
-            height: 60px;
+            width: 51px;
+            height: 51px;
             padding: 0;
             border-radius: 50%;
             display: flex;
@@ -150,55 +150,40 @@
         }
 
         .icon-btn svg {
-            width: 28px;
-            height: 28px;
+            width: 24px;
+            height: 24px;
         }
 
         .time-btn {
             min-width: auto;
-            width: 60px;
-            height: 60px;
+            width: 51px;
+            height: 51px;
             padding: 0;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: clamp(18px, 3.375vw, 24.75px);
+            font-size: clamp(15.3px, 2.87vw, 21px);
             flex-shrink: 0;
         }
 
         .time-buttons {
             display: flex;
-            flex-direction: row;
+            flex-direction: column;
             gap: var(--btn-gap);
-            flex-wrap: nowrap;
-            justify-content: center;
             align-items: center;
             width: 100%;
-            max-width: calc(60px * 5 + var(--btn-gap) * 4);
-        }
-
-        @media (max-width: 500px) {
-            .time-buttons {
-                flex-direction: column;
-                align-items: center;
-                max-width: 60px;
-            }
-        }
-
-        @media (min-width: 501px) {
-            .time-buttons {
-                flex-wrap: wrap;
-            }
+            max-width: 51px;
         }
 
         .session-timer-wrapper {
             position: relative;
-            width: min(50%, calc((60px * 4 + var(--btn-gap) * 3) * 0.5));
+            width: min(calc(45% * var(--session-scale, 1)), calc((60px * 4 + var(--btn-gap) * 3) * 0.45 * var(--session-scale, 1)));
             aspect-ratio: 1 / 1;
             display: flex;
             justify-content: center;
             align-items: center;
+            transition: width 0.6s ease;
         }
 
         .session-circle-container {
@@ -231,24 +216,13 @@
 
         .session-timer-display {
             position: relative;
-            font-size: clamp(11.7px, 4.05vw, 24.75px);
+            font-size: calc(clamp(10.5px, 3.65vw, 22.3px) * var(--session-scale, 1));
             font-weight: 300;
             color: #ffffff;
             text-align: center;
             font-variant-numeric: tabular-nums;
             z-index: 10;
-        }
-
-        .session-buttons {
-            display: flex;
-            gap: var(--btn-gap);
-            justify-content: center;
-        }
-
-        .session-btn {
-            min-width: auto;
-            padding: clamp(8px, 1.5vw, 12px) clamp(16px, 3vw, 24px);
-            font-size: clamp(12px, 1.6vw, 15px);
+            transition: font-size 0.6s ease;
         }
 
     </style>
@@ -265,9 +239,6 @@
 
         <div class="time-buttons">
             <button class="time-btn" data-minutes="2">2</button>
-            <button class="time-btn" data-minutes="3">3</button>
-            <button class="time-btn" data-minutes="5">5</button>
-            <button class="time-btn" data-minutes="10">10</button>
             <button id="stopBtn" class="icon-btn" aria-label="Stop">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="6" y="6" width="12" height="12"/>
@@ -280,78 +251,95 @@
                 <circle class="session-circle-bg" cx="150" cy="150" r="135"></circle>
                 <circle class="session-circle-progress" id="sessionCircleProgress" cx="150" cy="150" r="135"></circle>
             </svg>
-            <div class="session-timer-display" id="sessionTimerDisplay">00:00</div>
-        </div>
-
-        <div class="session-buttons">
-            <button class="session-btn" data-session-minutes="15">15 мин</button>
-            <button class="session-btn" data-session-minutes="30">30 мин</button>
+            <div class="session-timer-display" id="sessionTimerDisplay">15:00</div>
         </div>
     </div>
 
     <script>
-        // Сессионный таймер (обратный отсчёт, запускается кнопками)
+        // Сессионный таймер (прямой счёт, запускается при первом старте основного таймера)
         const sessionCircleProgress = document.getElementById('sessionCircleProgress');
         const sessionTimerDisplay = document.getElementById('sessionTimerDisplay');
-        let sessionTargetTime = null;
-        let sessionDuration = 0;
+        let sessionStarted = false;
+        let sessionPaused = false;
+        let sessionStartTime = null;   // момент последнего запуска/возобновления
+        let sessionElapsedBase = 0;    // секунд накоплено до последней паузы
         let sessionInterval = null;
-        let sessionRunning = false;
+
+        function getSessionElapsed() {
+            return sessionElapsedBase + (sessionStartTime ? (Date.now() - sessionStartTime) / 1000 : 0);
+        }
+
+        const SESSION_DURATION = 15 * 60;        // обратный отсчёт 15 минут
+        const SESSION_GROWTH_INTERVAL = 5 * 60;  // шаг роста: каждые 5 минут овертайма
+        const SESSION_BASE_FRACTION = 0.45;      // базовый размер (как в CSS)
+        const SESSION_TOP_FRACTION = 0.80;       // размер верхнего таймера
+        const SESSION_MAX_SCALE = SESSION_TOP_FRACTION / SESSION_BASE_FRACTION;
+
+        function setSessionScale(scale) {
+            const s = Math.min(scale, SESSION_MAX_SCALE);
+            document.documentElement.style.setProperty('--session-scale', s);
+        }
+
+        function formatSessionTime(seconds) {
+            const total = Math.floor(seconds);
+            const hours = Math.floor(total / 3600);
+            const mins = Math.floor((total % 3600) / 60);
+            const secs = total % 60;
+            if (hours > 0) {
+                return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            }
+            return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
 
         function updateSessionTimer() {
-            if (!sessionTargetTime) return;
+            const elapsed = getSessionElapsed();
+            const remaining = SESSION_DURATION - elapsed;
 
-            const now = Date.now();
-            const remaining = (sessionTargetTime - now) / 1000;
-
-            if (remaining <= 0) {
-                // Время вышло
-                sessionTimerDisplay.textContent = '00:00';
-                sessionCircleProgress.style.strokeDashoffset = 0;
-                sessionCircleProgress.style.stroke = '#C93B37';
-                clearInterval(sessionInterval);
-                sessionInterval = null;
-                sessionRunning = false;
-                return;
-            }
-
-            const mins = Math.floor(remaining / 60);
-            const secs = Math.floor(remaining % 60);
-            sessionTimerDisplay.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-
-            const progress = 1 - (remaining / sessionDuration);
-            sessionCircleProgress.style.strokeDashoffset = CIRCLE_CIRCUMFERENCE * (1 - progress);
-
-            // Цвет: зелёный -> оранжевый (75%) -> красный (90%)
-            if (progress >= 0.9) {
-                sessionCircleProgress.style.stroke = '#C93B37';
-            } else if (progress >= 0.75) {
-                sessionCircleProgress.style.stroke = '#ff8c42';
-            } else {
+            if (remaining > 0) {
+                // Фаза обратного отсчёта: 15:00 → 00:00, круг убывает
+                sessionTimerDisplay.textContent = formatSessionTime(remaining);
+                const progress = remaining / SESSION_DURATION; // 1 → 0
                 sessionCircleProgress.style.stroke = '#347D39';
+                sessionCircleProgress.style.strokeDashoffset = CIRCLE_CIRCUMFERENCE * (1 - progress);
+                setSessionScale(1);
+            } else {
+                // Овертайм: прямой счёт от 00:00 вверх, размер растёт ступенями
+                const overtimeElapsed = -remaining;
+                sessionTimerDisplay.textContent = formatSessionTime(overtimeElapsed);
+
+                // +10% при достижении нуля, далее +10% каждые 5 минут (потолок — размер верхнего)
+                const steps = 1 + Math.floor(overtimeElapsed / SESSION_GROWTH_INTERVAL);
+                setSessionScale(Math.pow(1.1, steps));
+
+                sessionCircleProgress.style.stroke = '#C93B37';
+                const cycleProgress = (overtimeElapsed % SESSION_GROWTH_INTERVAL) / SESSION_GROWTH_INTERVAL;
+                sessionCircleProgress.style.strokeDashoffset = CIRCLE_CIRCUMFERENCE * (1 - cycleProgress);
             }
         }
 
-        function startSessionTimer(seconds) {
-            if (sessionInterval) {
-                clearInterval(sessionInterval);
-            }
-            sessionDuration = seconds;
-            sessionTargetTime = Date.now() + seconds * 1000;
-            sessionRunning = true;
-            sessionCircleProgress.style.strokeDashoffset = CIRCLE_CIRCUMFERENCE;
-            sessionCircleProgress.style.stroke = '#347D39';
+        function startSessionTimer() {
+            if (sessionStarted) return;
+            sessionStarted = true;
+            sessionStartTime = Date.now();
             updateSessionTimer();
             sessionInterval = setInterval(updateSessionTimer, 50);
         }
 
-        document.querySelectorAll('.session-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.session-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                startSessionTimer(parseInt(btn.dataset.sessionMinutes) * 60);
-            });
-        });
+        function pauseSessionTimer() {
+            if (!sessionStarted || sessionPaused) return;
+            sessionElapsedBase = getSessionElapsed();
+            sessionStartTime = null;
+            sessionPaused = true;
+            clearInterval(sessionInterval);
+            sessionInterval = null;
+        }
+
+        function resumeSessionTimer() {
+            if (!sessionStarted || !sessionPaused) return;
+            sessionStartTime = Date.now();
+            sessionPaused = false;
+            sessionInterval = setInterval(updateSessionTimer, 50);
+        }
 
         let targetTime = null;
         let timerInterval = null;
@@ -451,6 +439,13 @@
             updateStopButton();
             updateTimer();
             timerInterval = setInterval(updateTimer, 50);
+
+            // Сессионный таймер: запускается при первом старте, возобновляется после паузы
+            if (!sessionStarted) {
+                startSessionTimer();
+            } else if (sessionPaused) {
+                resumeSessionTimer();
+            }
         }
 
         function stopTimer() {
@@ -479,9 +474,10 @@
             const now = Date.now();
             const elapsed = (now - (targetTime - currentDuration * 1000)) / 1000;
             pausedTimeRemaining = elapsed;
-            
+
             isPaused = true;
             isRunning = false;
+            pauseSessionTimer();
             updateStopButton();
         }
 
@@ -492,6 +488,7 @@
             targetTime = Date.now() + (currentDuration * 1000 - pausedTimeRemaining * 1000);
             isPaused = false;
             isRunning = true;
+            resumeSessionTimer();
             updateStopButton();
             updateTimer();
             timerInterval = setInterval(updateTimer, 50);
@@ -547,10 +544,6 @@
         document.addEventListener('keydown', (e) => {
             if (e.key === '2') {
                 startTimer(120); // 2 минуты
-            } else if (e.key === '3') {
-                startTimer(180); // 3 минуты
-            } else if (e.key === '5') {
-                startTimer(300); // 5 минут
             } else if (e.key === ' ' || e.key === 'Escape') {
                 e.preventDefault();
                 startTimer(lastSetDuration);
@@ -562,6 +555,11 @@
             currentDuration = 120;
             timerDisplay.textContent = '02:00';
             circleProgress.style.strokeDashoffset = CIRCLE_CIRCUMFERENCE;
+
+            // Сессионный таймер: полный зелёный круг и значение 15:00 до старта
+            sessionTimerDisplay.textContent = formatSessionTime(SESSION_DURATION);
+            sessionCircleProgress.style.stroke = '#347D39';
+            sessionCircleProgress.style.strokeDashoffset = 0;
         });
     </script>
 </body>
