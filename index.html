@@ -225,11 +225,23 @@
             transition: font-size 0.6s ease;
         }
 
+        /* Привлечение внимания в овертайме: короткое исчезновение и появление */
+        @keyframes attention-blink {
+            0%   { opacity: 1; }
+            30%  { opacity: 0; }
+            70%  { opacity: 0; }
+            100% { opacity: 1; }
+        }
+
+        .attention-blink {
+            animation: attention-blink 1s ease-in-out;
+        }
+
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="timer-wrapper">
+        <div class="timer-wrapper" id="timerWrapper">
             <svg class="circle-container" id="circleContainer" viewBox="0 0 300 300" preserveAspectRatio="xMidYMid meet">
                 <circle class="circle-bg" cx="150" cy="150" r="135"></circle>
                 <circle class="circle-progress" id="circleProgress" cx="150" cy="150" r="135"></circle>
@@ -246,7 +258,7 @@
             </button>
         </div>
 
-        <div class="session-timer-wrapper">
+        <div class="session-timer-wrapper" id="sessionTimerWrapper">
             <svg class="session-circle-container" viewBox="0 0 300 300" preserveAspectRatio="xMidYMid meet">
                 <circle class="session-circle-bg" cx="150" cy="150" r="135"></circle>
                 <circle class="session-circle-progress" id="sessionCircleProgress" cx="150" cy="150" r="135"></circle>
@@ -259,7 +271,17 @@
         // Сессионный таймер (прямой счёт, запускается при первом старте основного таймера)
         const sessionCircleProgress = document.getElementById('sessionCircleProgress');
         const sessionTimerDisplay = document.getElementById('sessionTimerDisplay');
+        const sessionTimerWrapper = document.getElementById('sessionTimerWrapper');
+        let lastSessionBlinkMinute = 0;
         let sessionStarted = false;
+
+        // Короткое мигание элемента для привлечения внимания (раз в минуту овертайма)
+        function triggerBlink(el) {
+            el.classList.add('attention-blink');
+            el.addEventListener('animationend', function handler() {
+                el.classList.remove('attention-blink');
+            }, { once: true });
+        }
         let sessionPaused = false;
         let sessionStartTime = null;   // момент последнего запуска/возобновления
         let sessionElapsedBase = 0;    // секунд накоплено до последней паузы
@@ -314,6 +336,13 @@
                 sessionCircleProgress.style.stroke = '#C93B37';
                 const cycleProgress = (overtimeElapsed % SESSION_GROWTH_INTERVAL) / SESSION_GROWTH_INTERVAL;
                 sessionCircleProgress.style.strokeDashoffset = CIRCLE_CIRCUMFERENCE * (1 - cycleProgress);
+
+                // Привлечение внимания: мигаем раз в минуту овертайма
+                const overtimeMinute = Math.floor(overtimeElapsed / 60);
+                if (overtimeMinute > lastSessionBlinkMinute) {
+                    lastSessionBlinkMinute = overtimeMinute;
+                    triggerBlink(sessionTimerWrapper);
+                }
             }
         }
 
@@ -349,8 +378,10 @@
         let currentDuration = 120; // По умолчанию 2 минуты
         let lastSetDuration = 120; // Последний установленный интервал
         let isOvertime = false;
+        let lastBlinkMinute = 0;   // последняя минута овертайма, на которой мигали
 
         const timerDisplay = document.getElementById('timerDisplay');
+        const timerWrapper = document.getElementById('timerWrapper');
         const circleProgress = document.getElementById('circleProgress');
         const circleContainer = document.getElementById('circleContainer');
         const stopBtn = document.getElementById('stopBtn');
@@ -419,6 +450,13 @@
                 } else {
                     document.body.classList.remove('overtime-critical');
                 }
+
+                // Привлечение внимания: мигаем раз в минуту овертайма
+                const overtimeMinute = Math.floor(overtimeElapsed / 60);
+                if (overtimeMinute > lastBlinkMinute) {
+                    lastBlinkMinute = overtimeMinute;
+                    triggerBlink(timerWrapper);
+                }
             }
 
             timerDisplay.textContent = formatTime(displaySeconds);
@@ -432,6 +470,7 @@
             isRunning = true;
             isPaused = false;
             isOvertime = false;
+            lastBlinkMinute = 0;
             circleProgress.classList.remove('overtime', 'warning');
             circleContainer.classList.remove('overtime-bg');
             document.body.classList.remove('overtime-critical');
