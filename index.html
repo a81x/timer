@@ -325,9 +325,9 @@
                 sessionCircleProgress.style.strokeDashoffset = CIRCLE_CIRCUMFERENCE * (1 - progress);
                 setSessionScale(1);
             } else {
-                // Овертайм: прямой счёт от 00:00 вверх, размер растёт ступенями
+                // Овертайм: прямой счёт вперёд от 15:00 (15:01, 15:02...), размер растёт ступенями
                 const overtimeElapsed = -remaining;
-                sessionTimerDisplay.textContent = formatSessionTime(overtimeElapsed);
+                sessionTimerDisplay.textContent = formatSessionTime(elapsed);
 
                 // +10% при достижении нуля, далее +10% каждые 5 минут (потолок — размер верхнего)
                 const steps = 1 + Math.floor(overtimeElapsed / SESSION_GROWTH_INTERVAL);
